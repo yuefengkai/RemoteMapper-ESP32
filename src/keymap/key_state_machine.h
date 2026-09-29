@@ -21,10 +21,12 @@ typedef enum {
     ACTION_VOICE_RELEASE,       // End voice recording + release hotkey
     ACTION_SWITCH_LAYER,        // Switch to target layer (auto-toggles to 0 if current == target)
     ACTION_TRANSPARENT,         // Transparent / Inherit from Layer 0
-    ACTION_WOL,                 // 11: Wake-on-LAN Magic Packet
-    ACTION_ADV_MACRO,           // 12: Future placeholder (Macro Sequence)
-    ACTION_ADV_HTTP,            // 13: Future placeholder (HTTP Webhook)
-    ACTION_ADV_MQTT             // 14: Future placeholder (MQTT Publish)
+    ACTION_WOL = 11,            // 11: Wake-on-LAN Magic Packet
+    ACTION_ADV_MACRO = 12,          // 12: Future placeholder (Macro Sequence)
+    ACTION_ADV_HTTP = 13,           // 13: Future placeholder (HTTP Webhook)
+    ACTION_ADV_MQTT = 14,           // 14: Future placeholder (MQTT Publish)
+    ACTION_VOICE_TOGGLE = 15,       // 15: Trigger voice recording + tap hotkey on press & release (TypeLess / Bageshuo)
+    ACTION_VOICE_TOGGLE_RELEASE = 16// 16: End voice recording + second tap hotkey
 } key_action_type_t;
 
 typedef struct {

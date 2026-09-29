@@ -30,6 +30,7 @@ static uint32_t              s_hw_sleep_start_ms    = 0;
 static uint16_t              s_last_soffn           = 0;
 static uint32_t              s_last_soffn_change_ms = 0;
 static uint32_t              s_boot_grace_until_ms  = 0;
+static uint32_t              s_voice_press_ms       = 0;
 
 extern "C" {
 
@@ -221,9 +222,9 @@ void usb_hid_dispatch_action(const key_action_t *action) {
     app_log("USB_HID", "Emit Action: type=%d, mod=0x%02X, key=0x%02X, cons=0x%04X", 
             action->type, action->modifier, action->key_code, action->consumer_code);
 
-    if (action->type == ACTION_VOICE_HOLD) {
+    if (action->type == ACTION_VOICE_HOLD || action->type == ACTION_VOICE_TOGGLE) {
         led_indicator_set(LED_STATE_MIC_STREAMING); // Solid Blue while voice recording
-    } else if (action->type == ACTION_VOICE_RELEASE) {
+    } else if (action->type == ACTION_VOICE_RELEASE || action->type == ACTION_VOICE_TOGGLE_RELEASE) {
         led_indicator_set(LED_STATE_CONNECTED);     // Solid Green when voice recording ends
     } else {
         led_indicator_trigger_key(false);           // Yellow flash on ordinary HID key actions
@@ -260,6 +261,27 @@ void usb_hid_dispatch_action(const key_action_t *action) {
             usb_hid_keyboard_release();
             audio_pipeline_stop_session(&g_audio_pipeline);
             break;
+        case ACTION_VOICE_TOGGLE:
+            // Start audio session and tap hotkey to trigger start (TypeLess / Bageshuo)
+            audio_pipeline_start_session(&g_audio_pipeline, 0);
+            s_voice_press_ms = millis();
+            if (action->modifier != 0 || action->key_code != 0) {
+                usb_hid_keyboard_tap(action->modifier, action->key_code);
+            }
+            break;
+        case ACTION_VOICE_TOGGLE_RELEASE: {
+            // Guard against too-fast release (<120ms) so target app receives discrete start & stop taps
+            uint32_t elapsed = millis() - s_voice_press_ms;
+            if (elapsed < 120) {
+                delay(120 - elapsed);
+            }
+            // Tap hotkey again to trigger stop & transcribe, then end audio session
+            if (action->modifier != 0 || action->key_code != 0) {
+                usb_hid_keyboard_tap(action->modifier, action->key_code);
+            }
+            audio_pipeline_stop_session(&g_audio_pipeline);
+            break;
+        }
         default:
             break;
     }

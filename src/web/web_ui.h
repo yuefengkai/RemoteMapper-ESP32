@@ -828,10 +828,16 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             </div>
 
             <!-- Voice Mode Locked Card (Only for Voice Key 0x04) -->
-            <div id="voice-mode-locked-card" style="display:none; background:rgba(59,130,246,0.15); border:2px solid #3b82f6; border-radius:10px; padding:12px 16px; margin-bottom:14px;">
-                <div>
-                    <div style="font-size:14px; font-weight:700; color:#93c5fd;">语音对讲专属模式</div>
-                    <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">按住时开启硬件麦克风录音并发送输入法热键，松开时停止录音并释放热键。</div>
+            <div id="voice-mode-locked-card" style="display:none; background:#0e1626; border:1px solid #2563eb; border-radius:10px; padding:12px 16px; margin-bottom:14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                    <div>
+                        <div style="font-size:14px; font-weight:700; color:#93c5fd;">🎙️ 语音触发工作模式</div>
+                        <div id="voice-submode-desc" style="font-size:12px; color:var(--text-muted); margin-top:2px;">按住时持续发送快捷键，松开时释放（适合微信语音输入、系统录音）</div>
+                    </div>
+                    <div style="display:flex; background:#070a10; border:1px solid #243247; border-radius:8px; padding:3px; gap:4px;">
+                        <button type="button" id="voice-btn-hold" onclick="setVoiceTriggerMode(7)" style="padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; border:none; background:#3b82f6; color:#fff; transition:all 0.15s;">长按模式</button>
+                        <button type="button" id="voice-btn-toggle" onclick="setVoiceTriggerMode(15)" style="padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; border:none; background:transparent; color:var(--text-muted); transition:all 0.15s;">切换模式</button>
+                    </div>
                 </div>
             </div>
 
@@ -1423,14 +1429,20 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 return `[切入: ${tgtName}]`;
             }
             if (type === 0 || (!key && !cons && !mod)) {
-                return (type === 7) ? '[语音对讲录音]' : '未映射';
+                if (type === 7) return '[语音长按]';
+                if (type === 15) return '[语音切换]';
+                return '未映射';
             }
 
             let parts = [];
             if (mod & 0x01) parts.push('Ctrl');
+            if (mod & 0x10) parts.push('RCtrl');
             if (mod & 0x08) parts.push('Win');
+            if (mod & 0x80) parts.push('RWin');
             if (mod & 0x04) parts.push('Alt');
+            if (mod & 0x40) parts.push('RAlt');
             if (mod & 0x02) parts.push('Shift');
+            if (mod & 0x20) parts.push('RShift');
 
             if (cons > 0) {
                 const consMap = {
@@ -1464,7 +1476,10 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             }
             const hotkeyStr = parts.join('+');
             if (type === 7) {
-                return hotkeyStr ? `[语音: ${hotkeyStr}]` : '[语音对讲录音]';
+                return hotkeyStr ? `[语音长按: ${hotkeyStr}]` : '[语音长按]';
+            }
+            if (type === 15) {
+                return hotkeyStr ? `[语音切换: ${hotkeyStr}]` : '[语音切换]';
             }
             return hotkeyStr;
         }
@@ -1966,13 +1981,52 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     let curKey = (curCode > 0 && curCode < 500) ? curCode : ((curMod > 0) ? 0 : 0x2C);
                     if (!skipRender) renderTriggerView(2, curMod, curKey, 0);
                     startKeyboardRecording();
-                } else if (mode === 7) {
-                    if (inst) inst.innerHTML = '<b>语音按键快捷键</b>：敲击键盘录制录音时发送的快捷键（如 Alt+, 或 Win+H）';
+                } else if (mode === 7 || mode === 15) {
+                    if (inst) inst.innerHTML = (mode === 15) ?
+                        '<b>语音按键快捷键（切换模式）</b>：按住遥控器语音键时模拟单击一次该按键唤醒录音，松开时再模拟单击一次结束录音并上屏（适配网易叭哥说/TypeLess）。' :
+                        '<b>语音按键快捷键（长按模式）</b>：按住遥控器语音键时持续按住该快捷键，松开时释放（如微信输入法 Alt+, 或 Win+H）。';
                     let curKey = (curCode > 0 && curCode < 500) ? curCode : ((curMod > 0) ? 0 : 54);
-                    if (!skipRender) renderTriggerView(7, (curMod || curKey ? curMod : 64), curKey, 0);
+                    if (!skipRender) renderTriggerView(mode, (curMod || curKey ? curMod : 64), curKey, 0);
                     startKeyboardRecording();
                 }
             }
+        }
+
+        function setVoiceTriggerMode(type) {
+            currentSelectedMode = (type === 15) ? 15 : 7;
+            const btnHold = document.getElementById('voice-btn-hold');
+            const btnToggle = document.getElementById('voice-btn-toggle');
+            const desc = document.getElementById('voice-submode-desc');
+            const inst = document.getElementById('recorder-instruction');
+            if (currentSelectedMode === 15) {
+                if (btnHold) {
+                    btnHold.style.background = 'transparent';
+                    btnHold.style.color = 'var(--text-muted)';
+                }
+                if (btnToggle) {
+                    btnToggle.style.background = '#10b981';
+                    btnToggle.style.color = '#fff';
+                }
+                if (desc) desc.innerText = '按下时单击一次快捷键启动录音，松开时再单击一次完成上屏（适配网易叭哥说、TypeLess、Whisper）';
+                if (inst) inst.innerHTML = '<b>语音按键快捷键（切换模式）</b>：按住遥控器语音键时模拟单击一次该按键唤醒录音，松开时再模拟单击一次结束录音并上屏（适配网易叭哥说/TypeLess）。';
+            } else {
+                if (btnHold) {
+                    btnHold.style.background = '#3b82f6';
+                    btnHold.style.color = '#fff';
+                }
+                if (btnToggle) {
+                    btnToggle.style.background = 'transparent';
+                    btnToggle.style.color = 'var(--text-muted)';
+                }
+                if (desc) desc.innerText = '按住时持续发送快捷键，松开时释放（适合微信语音输入、系统录音）';
+                if (inst) inst.innerHTML = '<b>语音按键快捷键（长按模式）</b>：按住遥控器语音键时持续按住该快捷键，松开时释放（如微信输入法 Alt+, 或 Win+H）。';
+            }
+            if (editingBinding) {
+                editingBinding.click_type = currentSelectedMode;
+            }
+            const mod = parseHexOrDec(document.getElementById('adv-mod').value) || 0;
+            const code = parseHexOrDec(document.getElementById('adv-code').value) || 0;
+            renderTriggerView(currentSelectedMode, mod, code, 0);
         }
 
         function switchAdvSubTab(sub) {
@@ -2090,7 +2144,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         function renderTriggerView(type, mod, key, cons) {
             const isVoice = (editingKey === 0x04 || editingKey === 0x3E);
             if (isVoice && currentEditingLayer === 0) {
-                type = 7;
+                if (type !== 15) type = 7;
                 cons = 0;
             } else if (type === 4 || cons > 0) {
                 type = 4;
@@ -2165,9 +2219,13 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
             let chips = [];
             if (mod & 0x01) chips.push('Ctrl');
+            if (mod & 0x10) chips.push('RCtrl');
             if (mod & 0x08) chips.push('Win');
+            if (mod & 0x80) chips.push('RWin');
             if (mod & 0x04) chips.push('Alt');
+            if (mod & 0x40) chips.push('RAlt');
             if (mod & 0x02) chips.push('Shift');
+            if (mod & 0x20) chips.push('RShift');
 
             if (cons > 0) {
                 const consMap = {
@@ -2294,10 +2352,11 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 document.getElementById('long-press-header').style.display = 'none';
                 document.getElementById('double-click-header').style.display = 'none';
                 currentTriggerTab = 'click';
-                selectActionMode(7, true);
+                const vMode = (editingBinding.click_type === 15) ? 15 : 7;
+                setVoiceTriggerMode(vMode);
                 const vMod = (editingBinding.click_mod !== undefined) ? editingBinding.click_mod : 64;
                 const vKey = (editingBinding.click_key !== undefined) ? editingBinding.click_key : 54;
-                renderTriggerView(7, vMod, vKey, 0);
+                renderTriggerView(vMode, vMod, vKey, 0);
             } else {
                 document.getElementById('trigger-tab-bar').style.display = 'flex';
                 document.getElementById('mode-selector-grid').style.display = 'grid';
@@ -2344,7 +2403,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             const isVoice = (editingKey === 0x04 || editingKey === 0x3E);
 
             if (isVoice && currentEditingLayer === 0) {
-                renderTriggerView(7, mod, code, 0);
+                renderTriggerView(currentSelectedMode, mod, code, 0);
             } else if (currentSelectedMode === 4 || code >= 500) {
                 renderTriggerView(4, 0, 0, code);
             } else if (currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11) {
@@ -2436,7 +2495,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             if (isVoice && currentEditingLayer === 0) {
                 editingBinding.source_vk = 0x04;
                 editingBinding.has_click = true;
-                editingBinding.click_type = 7;
+                editingBinding.click_type = (currentSelectedMode === 15) ? 15 : 7;
                 editingBinding.has_long = false;
                 editingBinding.has_double = false;
             }

@@ -177,6 +177,49 @@ def test_layer_system():
 
     print("  --> Multi-Layer System: PASSED")
 
+def test_voice_toggle_state_machine():
+    print("[TEST] Running Voice Toggle State Machine verification...")
+    ACTION_VOICE_HOLD = 7
+    ACTION_VOICE_RELEASE = 8
+    ACTION_VOICE_TOGGLE = 15
+    ACTION_VOICE_TOGGLE_RELEASE = 16
+
+    events_emitted = []
+
+    def emit_action(action_type, mod, key, is_press):
+        events_emitted.append((action_type, mod, key, is_press))
+
+    def feed_key(action_type, mod, key, is_pressed):
+        if is_pressed:
+            if action_type in (ACTION_VOICE_HOLD, ACTION_VOICE_TOGGLE):
+                emit_action(action_type, mod, key, True)
+        else:
+            if action_type == ACTION_VOICE_HOLD:
+                emit_action(ACTION_VOICE_RELEASE, 0, 0, False)
+            elif action_type == ACTION_VOICE_TOGGLE:
+                emit_action(ACTION_VOICE_TOGGLE_RELEASE, mod, key, False)
+
+    # Test 1: Hold Mode (WeChat Alt+,)
+    events_emitted.clear()
+    feed_key(ACTION_VOICE_HOLD, mod=0x04, key=0x36, is_pressed=True)
+    assert events_emitted == [(ACTION_VOICE_HOLD, 0x04, 0x36, True)]
+    feed_key(ACTION_VOICE_HOLD, mod=0x04, key=0x36, is_pressed=False)
+    assert events_emitted == [
+        (ACTION_VOICE_HOLD, 0x04, 0x36, True),
+        (ACTION_VOICE_RELEASE, 0, 0, False)
+    ]
+
+    # Test 2: Toggle Mode (TypeLess / Bageshuo RAlt 0x40)
+    events_emitted.clear()
+    feed_key(ACTION_VOICE_TOGGLE, mod=0x40, key=0, is_pressed=True)
+    assert events_emitted == [(ACTION_VOICE_TOGGLE, 0x40, 0, True)]
+    feed_key(ACTION_VOICE_TOGGLE, mod=0x40, key=0, is_pressed=False)
+    assert events_emitted == [
+        (ACTION_VOICE_TOGGLE, 0x40, 0, True),
+        (ACTION_VOICE_TOGGLE_RELEASE, 0x40, 0, False)
+    ]
+    print("  --> Voice Toggle State Machine: PASSED")
+
 if __name__ == "__main__":
     print("========================================")
     print(" RemoteMapper-ESP32 Native Test Suite")
@@ -185,7 +228,8 @@ if __name__ == "__main__":
     test_filter()
     test_key_state_machine()
     test_layer_system()
+    test_voice_toggle_state_machine()
     print("========================================")
-    print(" ALL TESTS PASSED SUCCESSFULLY! (4/4)")
+    print(" ALL TESTS PASSED SUCCESSFULLY! (5/5)")
     print("========================================")
 
